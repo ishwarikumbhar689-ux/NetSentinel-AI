@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Laptop Network Scanning – NetSentinel AI{% endblock %}
+{% block page_title %}Laptop Network Scanning{% endblock %}
+{% block page_sub %}Analyse compatible traffic records from your own laptop{% endblock %}
+
+{% block content %}
+
+<!-- Scope note (spec §7.2 / §5.2) -->
+<div class="mb-6 px-4 py-3 rounded-lg bg-slate-800/60 border border-slate-700 text-xs text-slate-400 flex gap-3">
+  <span class="text-purple-400 shrink-0 text-base mt-0.5" aria-hidden="true">ℹ</span>
+  <div>
+    <strong class="text-slate-200">Current version (MVP):</strong>
+    Laptop scanning works by uploading a CSV file of network records you have already captured.
+    A browser page cannot directly inspect all traffic on a laptop.
+    For live capture, use a local tool such as <strong class="text-slate-200">Wireshark</strong> and export
+    the result as CSV. Automatic live traffic collection via a local agent is a planned future feature.
+  </div>
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+
+  <!-- Upload card -->
+  <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
+    <h3 class="text-sm font-semibold text-white mb-1">Upload Laptop Network Log</h3>
+    <p class="text-xs text-slate-400 mb-4">
+      Export your laptop's connections from Wireshark or a similar tool as CSV.
+      Required columns:
+      <code class="bg-slate-800 px-1 rounded text-indigo-300">src_ip, dst_ip, protocol, port, packets, bytes, duration, flags</code>
+    </p>
+
+    <!-- Auth-use reminder -->
+    <div class="mb-5 px-4 py-3 rounded-lg bg-slate-800/60 border border-slate-700 text-xs text-slate-400 flex gap-2">
+      <span class="text-purple-400 shrink-0 text-base" aria-hidden="true">🔒</span>
+      <span>
+        Only analyse <strong class="text-slate-200">your own device</strong> or devices you are
+        authorised to monitor. Unapproved monitoring is not permitted.
+      </span>
+    </div>
+
+    <div id="dropZone" role="button" tabindex="0" aria-label="Click or drop a CSV file here"
+         class="border-2 border-dashed border-slate-700 rounded-xl p-10 text-center cursor-pointer
+                hover:border-purple-500 hover:bg-purple-900/10 transition-all mb-4"
+         onclick="document.getElementById('csvInput').click()"
+         onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('csvInput').click()">
+      <div class="text-4xl mb-3" aria-hidden="true">💻</div>
+      <p class="text-sm text-slate-300 font-medium">Drop CSV here or click to browse</p>
+      <p class="text-xs text-slate-500 mt-1">CSV format only · Max {{ max_mb }} MB</p>
+      <p id="fileName" class="text-xs text-purple-400 mt-2 hidden"></p>
+    </div>
+
+    <form id="uploadForm" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="scan_type" value="laptop"/>
+      <input type="file" id="csvInput" name="csv_file" accept=".csv"
+             class="hidden" aria-label="CSV file input"/>
+      <button type="submit"
+        class="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-2.5 rounded-lg
+               text-sm transition-colors disabled:opacity-50">
+        💻 Run Laptop Analysis
+      </button>
+    </form>
+
+    <div id="scanStatus" class="hidden mt-4 p-4 rounded-lg bg-slate-800 border border-slate-700"
+         role="status" aria-live="polite">
+      <div id="statusMsg" class="text-sm text-slate-300"></div>
+    </div>
+  </div>
+
+  <!-- Tips panel -->
+  <div class="space-y-5">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+      <h3 class="text-sm font-semibold text-white mb-4">🔒 How to Capture on Your Laptop</h3>
+      <ul class="space-y-3 text-xs text-slate-400">
+        <li class="flex gap-2">
+          <span class="text-purple-400 shrink-0">▸</span>
+          Install <strong class="text-slate-200">Wireshark</strong> (free) → start capture → export as CSV.
+        </li>
+        <li class="flex gap-2">
+          <span class="text-purple-400 shrink-0">▸</span>
+          Run <code class="bg-slate-800 px-1 rounded">netstat -n</code> to list active connections.
+        </li>
+        <li class="flex gap-2">
+          <span class="text-purple-400 shrink-0">▸</span>
+          Use after connecting to public Wi-Fi to detect unusual outbound connections.
+        </li>
+        <li class="flex gap-2">
+          <span class="text-purple-400 shrink-0">▸</span>
+          Only capture traffic on networks you own or are authorised to monitor.
+        </li>
+      </ul>
+    </div>
+
+    <!-- Demo threat indicators -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <p class="text-xs font-semibold text-slate-300 mb-3">Common Threat Patterns Detected</p>
+      <div class="space-y-3">
+        {% for label, pct, color in [
+          ('Port Scans (demo)',      72, 'red'),
+          ('Data Exfiltration (demo)', 38, 'amber'),
+          ('C2 Beaconing (demo)',    12, 'emerald'),
+        ] %}
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-400">{{ label }}</span>
+            <span class="text-{{ color }}-400 font-medium">{{ pct }}%</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-1.5">
+            <div class="bg-{{ color }}-500 h-1.5 rounded-full" style="width:{{ pct }}%"></div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-slate-600 mt-3 text-center">⚠ Demo shapes — upload CSV for real results</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Threat patterns reference -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <h3 class="text-sm font-semibold text-white mb-4">🚨 Common Laptop Threat Patterns</h3>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {% for name, desc, color in [
+      ('Port Scanning',     'Rapid connection attempts across many ports in a short time.',            'red'),
+      ('SYN Flood',         'Large number of SYN packets without completing the TCP handshake.',      'red'),
+      ('Data Exfiltration', 'Unusually large outbound data transfers to external addresses.',          'amber'),
+      ('C2 Beaconing',      'Regular periodic connections to a suspicious or unknown external host.', 'amber'),
+    ] %}
+    <div class="bg-slate-800/60 rounded-lg p-4 border border-slate-700">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-2 h-2 rounded-full bg-{{ color }}-400" aria-hidden="true"></span>
+        <p class="text-xs font-semibold text-white">{{ name }}</p>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">{{ desc }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="text-xs text-slate-500 mt-4">
+    ⚠ Detections above are <em>indicators for investigation</em> only.
+    Always review findings with a qualified security professional before taking action.
+  </p>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MAX_MB = {{ max_mb }};
+const dropZone = document.getElementById('dropZone');
+const csvInput = document.getElementById('csvInput');
+const fileNameEl = document.getElementById('fileName');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-purple-400'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-purple-400'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('border-purple-400');
+  if (e.dataTransfer.files[0]) {
+    csvInput.files = e.dataTransfer.files;
+    showName(e.dataTransfer.files[0]);
+  }
+});
+csvInput.addEventListener('change', () => { if (csvInput.files[0]) showName(csvInput.files[0]); });
+function showName(f) {
+  fileNameEl.textContent = '✅ ' + f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+  fileNameEl.classList.remove('hidden');
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = csvInput.files[0];
+  if (!file) { alert('Please select a CSV file first.'); return; }
+  if (!file.name.toLowerCase().endsWith('.csv')) { alert('Please upload a CSV file.'); return; }
+  if (file.size > MAX_MB * 1024 * 1024) {
+    alert('File is too large. Maximum allowed size is ' + MAX_MB + ' MB.');
+    return;
+  }
+
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true; btn.textContent = '⏳ Analysing…';
+
+  const formData = new FormData(e.target);
+  formData.set('csv_file', file);
+
+  const statusDiv = document.getElementById('scanStatus');
+  const statusMsg = document.getElementById('statusMsg');
+  statusDiv.classList.remove('hidden');
+  statusMsg.innerHTML = '<span class="text-purple-400">Uploading and analysing laptop traffic…</span>';
+
+  try {
+    const resp = await fetch('/upload-scan', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.error) {
+      statusMsg.innerHTML = `<div class="text-red-400 font-medium mb-1">❌ Analysis failed</div>
+        <p class="text-slate-400 text-xs">${data.error}</p>`;
+    } else {
+      const demoNote = data.demo_mode
+        ? '<p class="text-xs text-amber-300 mt-3">⚠ Results use demo heuristics — not a trained model. Predictions are indicators only.</p>'
+        : '';
+      statusMsg.innerHTML = `
+        <div class="text-emerald-400 font-semibold mb-3">✅ Laptop analysis complete</div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-white">${data.total}</p><p class="text-xs text-slate-400">Records</p></div>
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-emerald-400">${data.normal}</p><p class="text-xs text-slate-400">Normal</p></div>
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-red-400">${data.suspicious}</p><p class="text-xs text-slate-400">Pot. Suspicious</p></div>
+        </div>
+        ${demoNote}
+        <a href="/scan-results/${data.scan_id}" class="mt-4 block text-center text-sm text-purple-400 hover:text-purple-300 transition-colors">View Detailed Results →</a>`;
+    }
+  } catch {
+    statusMsg.innerHTML = `<span class="text-red-400">❌ Network error.</span>`;
+  }
+  btn.disabled = false; btn.textContent = '💻 Run Laptop Analysis';
+});
+</script>
+{% endblock %}

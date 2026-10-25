@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Reports – NetSentinel AI{% endblock %}
+{% block page_title %}Reports{% endblock %}
+{% block page_sub %}Download CSV reports for any completed scan{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <p class="text-sm text-slate-400">Each CSV report contains full record-level predictions from the AI model.</p>
+  <a href="{{ url_for('network_scan') }}"
+     class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg transition-colors">
+    + New Scan
+  </a>
+</div>
+
+{% if scans %}
+
+<!-- Report cards grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
+  {% for scan in scans %}
+  {% if scan['status'] == 'completed' %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-colors">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <span class="text-xs font-mono text-slate-500">Scan #{{ scan['id'] }}</span>
+        <h4 class="text-sm font-semibold text-white mt-0.5">
+          🔍 Network Analysis
+        </h4>
+        <p class="text-xs text-slate-400 mt-0.5">{{ scan['created'][:16] }}</p>
+      </div>
+      {% if scan['suspicious'] > 0 %}
+      <span class="px-2 py-0.5 rounded-full text-xs bg-red-900/50 text-red-300 border border-red-800 whitespace-nowrap">
+        {{ scan['suspicious'] }} flagged
+      </span>
+      {% else %}
+      <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-900/50 text-emerald-300 border border-emerald-800">
+        No flags
+      </span>
+      {% endif %}
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-3 gap-2 mb-4">
+      <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+        <p class="text-base font-bold text-white">{{ scan['total'] }}</p>
+        <p class="text-xs text-slate-500">Records</p>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+        <p class="text-base font-bold text-emerald-400">{{ scan['normal'] }}</p>
+        <p class="text-xs text-slate-500">Normal</p>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-2 text-center">
+        <p class="text-base font-bold text-red-400">{{ scan['suspicious'] }}</p>
+        <p class="text-xs text-slate-500">Pot. Susp.</p>
+      </div>
+    </div>
+
+    <!-- Flag rate bar -->
+    {% set pct = ((scan['suspicious'] / scan['total']) * 100) if scan['total'] > 0 else 0 %}
+    <div class="mb-4">
+      <div class="flex justify-between text-xs text-slate-400 mb-1">
+        <span>Flag rate</span>
+        <span>{{ "%.1f"|format(pct) }}%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-1.5">
+        <div class="h-1.5 rounded-full
+                    {% if pct > 20 %}bg-red-500{% elif pct > 5 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+             style="width:{{ [pct, 100]|min }}%"></div>
+      </div>
+    </div>
+
+    {% if scan['filename'] %}
+    <p class="text-xs text-slate-500 mb-4 truncate">📁 {{ scan['filename'] }}</p>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="flex gap-2">
+      <a href="{{ url_for('scan_results', scan_id=scan['id']) }}"
+         class="flex-1 text-center px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs
+                rounded-lg transition-colors">
+        👁 View Results
+      </a>
+      <a href="{{ url_for('download_report', scan_id=scan['id']) }}"
+         class="flex-1 text-center px-3 py-2 bg-emerald-800/60 hover:bg-emerald-700/60 text-emerald-300
+                text-xs rounded-lg border border-emerald-700/50 transition-colors">
+        ⬇ Download CSV
+      </a>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Summary chart -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-sm font-semibold text-white">All Completed Scans — Normal vs Potentially Suspicious</h3>
+  </div>
+  <div style="height:220px">
+    <canvas id="reportChart" aria-label="Stacked bar chart of normal vs potentially suspicious per scan"></canvas>
+  </div>
+</div>
+
+{% else %}
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-16 text-center">
+  <p class="text-5xl mb-4" aria-hidden="true">📊</p>
+  <p class="text-slate-300 font-medium text-lg mb-2">No reports available yet</p>
+  <p class="text-slate-500 text-sm mb-6">Complete a scan first to generate a downloadable report.</p>
+  <a href="{{ url_for('network_scan') }}"
+     class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors">
+    Start an Analysis →
+  </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if scans %}
+<script>
+const completedScans = [{% for s in scans %}{% if s['status'] == 'completed' %}{{ s | tojson }},{% endif %}{% endfor %}];
+const scanLabels = completedScans.map(s => '#' + s.id);
+const normalData = completedScans.map(s => s.normal);
+const suspData   = completedScans.map(s => s.suspicious);
+
+if (completedScans.length > 0) {
+  new Chart(document.getElementById('reportChart'), {
+    type: 'bar',
+    data: {
+      labels: scanLabels,
+      datasets: [
+        { label: 'Normal',               data: normalData, backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
+        { label: 'Potentially Suspicious', data: suspData, backgroundColor: 'rgba(239,68,68,0.7)',  borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8' } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+        y: { stacked: true, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+}
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Company Network Monitoring – NetSentinel AI{% endblock %}
+{% block page_title %}Company Network Monitoring{% endblock %}
+{% block page_sub %}Upload and analyse your organisation's authorised network traffic logs{% endblock %}
+
+{% block content %}
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+
+  <!-- Upload card -->
+  <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
+    <h3 class="text-sm font-semibold text-white mb-1">Upload Network Traffic CSV</h3>
+    <p class="text-xs text-slate-400 mb-4">
+      Your CSV must include these columns:
+      <code class="bg-slate-800 px-1 rounded text-indigo-300">src_ip, dst_ip, protocol, port, packets, bytes, duration, flags</code>
+    </p>
+
+    <!-- Authorised-use reminder -->
+    <div class="mb-5 px-4 py-3 rounded-lg bg-slate-800/60 border border-slate-700 text-xs text-slate-400 flex gap-2">
+      <span class="text-indigo-400 shrink-0 text-base" aria-hidden="true">🔒</span>
+      <span>
+        Only upload traffic records from <strong class="text-slate-200">networks you own or are authorised to monitor</strong>.
+        Unapproved monitoring of networks or devices belonging to others is not permitted.
+      </span>
+    </div>
+
+    <!-- Drop zone -->
+    <div id="dropZone" role="button" tabindex="0" aria-label="Click or drop a CSV file here"
+         class="border-2 border-dashed border-slate-700 rounded-xl p-10 text-center cursor-pointer
+                hover:border-indigo-500 hover:bg-indigo-900/10 transition-all duration-200 mb-4"
+         onclick="document.getElementById('csvInput').click()"
+         onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('csvInput').click()">
+      <div class="text-4xl mb-3" aria-hidden="true">📂</div>
+      <p class="text-sm text-slate-300 font-medium">Drop CSV here or click to browse</p>
+      <p class="text-xs text-slate-500 mt-1">CSV format only · Max {{ max_mb }} MB</p>
+      <p id="fileName" class="text-xs text-indigo-400 mt-2 hidden"></p>
+    </div>
+
+    <form id="uploadForm" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="scan_type" value="company"/>
+      <input type="file" id="csvInput" name="csv_file" accept=".csv"
+             class="hidden" aria-label="CSV file input"/>
+      <button type="submit" id="uploadBtn"
+        class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg
+               text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        🚀 Run Analysis
+      </button>
+    </form>
+
+    <!-- Status / result -->
+    <div id="scanStatus" class="hidden mt-4 p-4 rounded-lg bg-slate-800 border border-slate-700" role="status" aria-live="polite">
+      <div id="statusMsg" class="text-sm text-slate-300"></div>
+    </div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="space-y-5">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+      <h3 class="text-sm font-semibold text-white mb-4">💡 How it Works</h3>
+      <ol class="space-y-3 text-xs text-slate-400">
+        <li class="flex gap-3"><span class="text-indigo-400 font-bold shrink-0">1.</span> Export network logs from your router or authorised monitoring tool as CSV.</li>
+        <li class="flex gap-3"><span class="text-indigo-400 font-bold shrink-0">2.</span> Upload the CSV — column names are validated instantly (FR-04).</li>
+        <li class="flex gap-3"><span class="text-indigo-400 font-bold shrink-0">3.</span> The model analyses each connection record using the trained preprocessing pipeline.</li>
+        <li class="flex gap-3"><span class="text-indigo-400 font-bold shrink-0">4.</span> Results show Normal vs Potentially Suspicious with confidence scores.</li>
+        <li class="flex gap-3"><span class="text-indigo-400 font-bold shrink-0">5.</span> Download a CSV report. Review flagged records with a security professional.</li>
+      </ol>
+    </div>
+
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <div class="mb-3 p-3 rounded-lg bg-amber-900/20 border border-amber-800/50 text-xs text-amber-300">
+        ⚠️ <strong>Demo mode:</strong> Heuristic rules are used instead of a trained model.
+        Predictions are indicators only — <strong>not proof of an attack</strong>.
+      </div>
+      <a href="{{ url_for('static', filename='sample_network.csv') }}"
+         class="block text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors py-2
+                bg-slate-800 rounded-lg">
+        ⬇ Download Sample CSV
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Live traffic chart -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-sm font-semibold text-white">Live Traffic Monitor</h3>
+    <div class="flex items-center gap-2 text-xs text-emerald-400">
+      <span class="blink w-2 h-2 rounded-full bg-emerald-400 inline-block" aria-hidden="true"></span>
+      Auto-refreshes every 5 s
+      <span class="text-amber-400 ml-2 px-2 py-0.5 rounded bg-slate-800 border border-amber-800/40">DEMO DATA</span>
+    </div>
+  </div>
+  <div style="height:240px">
+    <canvas id="liveChart" aria-label="Live traffic line chart (demo data)"></canvas>
+  </div>
+</div>
+
+<!-- Recent scans -->
+{% if recent %}
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+  <h3 class="text-sm font-semibold text-white mb-4">Recent Company Analyses</h3>
+  <div class="overflow-x-auto" role="region" aria-label="Recent company scans">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-slate-500 border-b border-slate-800">
+          <th scope="col" class="text-left pb-3 pr-4">ID</th>
+          <th scope="col" class="text-left pb-3 pr-4">File</th>
+          <th scope="col" class="text-left pb-3 pr-4">Records</th>
+          <th scope="col" class="text-left pb-3 pr-4">Pot. Suspicious</th>
+          <th scope="col" class="text-left pb-3 pr-4">Status</th>
+          <th scope="col" class="text-left pb-3 pr-4">Date</th>
+          <th scope="col" class="text-left pb-3">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% for scan in recent %}
+        <tr class="hover:bg-slate-800/40 transition-colors">
+          <td class="py-3 pr-4 text-slate-400 font-mono text-xs">#{{ scan['id'] }}</td>
+          <td class="py-3 pr-4 text-slate-300 text-xs">{{ scan['filename'] or '—' }}</td>
+          <td class="py-3 pr-4 text-slate-200">{{ scan['total'] }}</td>
+          <td class="py-3 pr-4">
+            <span class="{% if scan['suspicious'] > 0 %}text-red-400 font-semibold{% else %}text-emerald-400{% endif %}">
+              {{ scan['suspicious'] }}
+            </span>
+          </td>
+          <td class="py-3 pr-4">
+            <span class="px-2 py-0.5 rounded-full text-xs
+              {% if scan['status'] == 'completed' %}bg-emerald-900/50 text-emerald-300
+              {% elif scan['status'] == 'failed'  %}bg-red-900/50    text-red-300
+              {% else                             %}bg-amber-900/50  text-amber-300{% endif %}">
+              {{ scan['status']|capitalize }}
+            </span>
+          </td>
+          <td class="py-3 pr-4 text-slate-400 text-xs">{{ scan['created'][:16] }}</td>
+          <td class="py-3">
+            {% if scan['status'] == 'completed' %}
+            <a href="{{ url_for('scan_results', scan_id=scan['id']) }}"
+               class="text-xs text-indigo-400 hover:text-indigo-300">View →</a>
+            {% else %}
+            <span class="text-xs text-slate-600">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MAX_MB = {{ max_mb }};
+
+// ── File drag-and-drop ────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const csvInput = document.getElementById('csvInput');
+const fileNameEl = document.getElementById('fileName');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-400'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-400'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('border-indigo-400');
+  if (e.dataTransfer.files[0]) {
+    csvInput.files = e.dataTransfer.files;
+    showFileName(e.dataTransfer.files[0]);
+  }
+});
+csvInput.addEventListener('change', () => { if (csvInput.files[0]) showFileName(csvInput.files[0]); });
+
+function showFileName(file) {
+  fileNameEl.textContent = '✅ ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+  fileNameEl.classList.remove('hidden');
+}
+
+// ── Upload form ───────────────────────────────────────────
+document.getElementById('uploadForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!csvInput.files[0]) { alert('Please select a CSV file first.'); return; }
+
+  const file = csvInput.files[0];
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    alert('Unsupported file type. Please upload a CSV file.');
+    return;
+  }
+  if (file.size > MAX_MB * 1024 * 1024) {
+    alert('File is too large. Maximum allowed size is ' + MAX_MB + ' MB. Please split the file and try again.');
+    return;
+  }
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analysing…';
+
+  const formData = new FormData(e.target);
+  formData.set('csv_file', file);
+
+  const statusDiv = document.getElementById('scanStatus');
+  const statusMsg = document.getElementById('statusMsg');
+  statusDiv.classList.remove('hidden');
+  statusMsg.innerHTML = '<span class="text-indigo-400">Uploading and running analysis…</span>';
+
+  try {
+    const resp = await fetch('/upload-scan', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.error) {
+      statusMsg.innerHTML = `<div class="text-red-400 font-medium mb-1">❌ Analysis failed</div>
+        <p class="text-slate-400 text-xs">${data.error}</p>`;
+    } else {
+      const demoNote = data.demo_mode
+        ? '<p class="text-xs text-amber-300 mt-3">⚠ Results use demo heuristics — not a trained model. Predictions are indicators only.</p>'
+        : '';
+      statusMsg.innerHTML = `
+        <div class="text-emerald-400 font-semibold mb-3">✅ Analysis complete</div>
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-white">${data.total}</p><p class="text-xs text-slate-400">Records</p></div>
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-emerald-400">${data.normal}</p><p class="text-xs text-slate-400">Normal</p></div>
+          <div class="bg-slate-900 rounded-lg p-2"><p class="text-lg font-bold text-red-400">${data.suspicious}</p><p class="text-xs text-slate-400">Pot. Suspicious</p></div>
+        </div>
+        ${demoNote}
+        <a href="/scan-results/${data.scan_id}"
+           class="mt-4 block text-center text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
+          View Detailed Results →
+        </a>`;
+    }
+  } catch (err) {
+    statusMsg.innerHTML = `<span class="text-red-400">❌ Network error. Is the Flask server running?</span>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🚀 Run Analysis';
+});
+
+// ── Live traffic chart (demo data — clearly labelled) ─────
+const liveCtx = document.getElementById('liveChart').getContext('2d');
+const liveChart = new Chart(liveCtx, {
+  type: 'line',
+  data: { labels: [], datasets: [
+    { label: 'Normal',               data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.4, fill: true, pointRadius: 3 },
+    { label: 'Potentially Suspicious', data: [], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)',  tension: 0.4, fill: true, pointRadius: 3 }
+  ]},
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 500 },
+    plugins: { legend: { labels: { color: '#94a3b8' } } },
+    scales: {
+      x: { ticks: { color: '#94a3b8', maxTicksLimit: 10 }, grid: { color: '#1e293b' } },
+      y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+    }
+  }
+});
+
+function fetchLive() {
+  fetch('/api/live-stats').then(r => r.json()).then(d => {
+    liveChart.data.labels = d.labels;
+    liveChart.data.datasets[0].data = d.normal;
+    liveChart.data.datasets[1].data = d.suspicious;
+    liveChart.update();
+  });
+}
+fetchLive();
+setInterval(fetchLive, 5000);
+</script>
+{% endblock %}

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Network Scan — NetSentinel AI{% endblock %}
+{% block page_title %}Network Scan{% endblock %}
+{% block page_sub %}Upload a network traffic CSV for analysis{% endblock %}
+
+{% block content %}
+
+{% if not model_ready %}
+<div class="mb-6 flex items-start gap-3 px-5 py-4 bg-amber-950/50 border border-amber-800/60 rounded-xl text-sm">
+  <span class="text-amber-400 text-lg shrink-0">⚠</span>
+  <div>
+    <p class="font-semibold text-amber-300">Model not trained</p>
+    <p class="text-amber-200/70 text-xs mt-0.5">
+      Run <code class="bg-slate-800 px-1 rounded">python train_model.py</code> first.
+      Scans will fail until model.pkl is present.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-7">
+
+  <!-- Upload card -->
+  <div class="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6">
+    <h3 class="text-sm font-semibold text-white mb-1">Upload Network Traffic CSV</h3>
+    <p class="text-xs text-slate-500 mb-5">
+      Required columns:
+      <code class="bg-slate-800 px-1 rounded text-indigo-300 ml-1">dur · proto · service · state · spkts · dpkts · sbytes · dbytes · rate · ...</code>
+      — use the sample CSV below for the full list.
+    </p>
+
+    <!-- Drop zone -->
+    <div id="dropZone" role="button" tabindex="0"
+         class="border-2 border-dashed border-slate-700 rounded-xl p-10 text-center cursor-pointer
+                hover:border-indigo-500 hover:bg-indigo-950/20 transition-all mb-4"
+         onclick="document.getElementById('csvInput').click()"
+         onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
+      <div class="text-4xl mb-3 opacity-60">📂</div>
+      <p class="text-sm text-slate-300 font-medium">Drop CSV here or click to browse</p>
+      <p class="text-xs text-slate-600 mt-1">CSV only · Max {{ max_mb }} MB</p>
+      <p id="fileName" class="text-xs text-indigo-400 mt-2 hidden"></p>
+    </div>
+
+    <form id="uploadForm" enctype="multipart/form-data" novalidate>
+      <input type="file" id="csvInput" name="csv_file" accept=".csv" class="hidden" />
+      <button type="submit" id="uploadBtn"
+        class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed
+               text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
+        Run Analysis →
+      </button>
+    </form>
+
+    <div id="scanStatus" class="hidden mt-4 p-4 rounded-lg bg-slate-800/80 border border-slate-700"
+         role="status" aria-live="polite">
+      <div id="statusMsg"></div>
+    </div>
+  </div>
+
+  <!-- Info -->
+  <div class="space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3">How It Works</h4>
+      <ol class="space-y-2.5 text-xs text-slate-400">
+        <li class="flex gap-2.5"><span class="text-indigo-400 font-bold shrink-0">1.</span>Export logs from your network device as CSV.</li>
+        <li class="flex gap-2.5"><span class="text-indigo-400 font-bold shrink-0">2.</span>Upload — columns are validated instantly.</li>
+        <li class="flex gap-2.5"><span class="text-indigo-400 font-bold shrink-0">3.</span>The AI analyses each record automatically.</li>
+        <li class="flex gap-2.5"><span class="text-indigo-400 font-bold shrink-0">4.</span>Review Normal vs Potentially Suspicious results.</li>
+        <li class="flex gap-2.5"><span class="text-indigo-400 font-bold shrink-0">5.</span>Download a CSV report for your records.</li>
+      </ol>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <a href="{{ url_for('static', filename='sample_network.csv') }}"
+         class="block text-center text-xs text-indigo-400 hover:text-indigo-300 py-2.5
+                bg-slate-800/60 rounded-lg border border-slate-700 transition-colors">
+        ⬇ Download Sample CSV
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Recent scans -->
+{% if recent %}
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <div class="px-5 py-4 border-b border-slate-800">
+    <h3 class="text-sm font-medium text-white">Recent Scans</h3>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-slate-800/60 text-slate-500 uppercase tracking-wider">
+          <th class="text-left px-5 py-3">ID</th>
+          <th class="text-left px-5 py-3">File</th>
+          <th class="text-left px-5 py-3">Records</th>
+          <th class="text-left px-5 py-3">Normal</th>
+          <th class="text-left px-5 py-3">Suspicious</th>
+          <th class="text-left px-5 py-3">Status</th>
+          <th class="text-left px-5 py-3">Date</th>
+          <th class="text-left px-5 py-3">Action</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800/60">
+        {% for scan in recent %}
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-5 py-3 text-slate-500 font-mono">#{{ scan['id'] }}</td>
+          <td class="px-5 py-3 text-slate-300 max-w-[180px] truncate">{{ scan['filename'] or '—' }}</td>
+          <td class="px-5 py-3 text-slate-300">{{ scan['total'] }}</td>
+          <td class="px-5 py-3 text-emerald-400">{{ scan['normal'] }}</td>
+          <td class="px-5 py-3 {% if scan['suspicious'] > 0 %}text-red-400 font-semibold{% else %}text-emerald-400{% endif %}">
+            {{ scan['suspicious'] }}
+          </td>
+          <td class="px-5 py-3">
+            <span class="px-2 py-0.5 rounded-full
+              {% if scan['status']=='completed' %}bg-emerald-900/50 text-emerald-400
+              {% elif scan['status']=='failed'  %}bg-red-900/50 text-red-400
+              {% else %}bg-amber-900/50 text-amber-400{% endif %}">
+              {{ scan['status']|capitalize }}
+            </span>
+          </td>
+          <td class="px-5 py-3 text-slate-500">{{ scan['created'][:16] }}</td>
+          <td class="px-5 py-3">
+            {% if scan['status'] == 'completed' %}
+            <a href="{{ url_for('scan_results', scan_id=scan['id']) }}"
+               class="text-indigo-400 hover:text-indigo-300">View →</a>
+            {% else %}<span class="text-slate-700">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const MAX_MB = {{ max_mb }};
+const dropZone   = document.getElementById('dropZone');
+const csvInput   = document.getElementById('csvInput');
+const fileNameEl = document.getElementById('fileName');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('border-indigo-500'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-indigo-500'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('border-indigo-500');
+  if (e.dataTransfer.files[0]) { csvInput.files = e.dataTransfer.files; showFile(e.dataTransfer.files[0]); }
+});
+csvInput.addEventListener('change', () => { if (csvInput.files[0]) showFile(csvInput.files[0]); });
+
+function showFile(f) {
+  fileNameEl.textContent = '✓ ' + f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+  fileNameEl.classList.remove('hidden');
+}
+
+document.getElementById('uploadForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = csvInput.files[0];
+  if (!file) { alert('Please select a CSV file.'); return; }
+  if (!file.name.toLowerCase().endsWith('.csv')) { alert('Please upload a .csv file.'); return; }
+  if (file.size > MAX_MB * 1024 * 1024) { alert('File exceeds ' + MAX_MB + ' MB limit.'); return; }
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true; btn.textContent = 'Analysing…';
+
+  const formData = new FormData(e.target);
+  formData.set('csv_file', file);
+
+  const statusDiv = document.getElementById('scanStatus');
+  const statusMsg = document.getElementById('statusMsg');
+  statusDiv.classList.remove('hidden');
+  statusMsg.innerHTML = '<span class="text-indigo-400 text-sm">Running analysis…</span>';
+
+  try {
+    const resp = await fetch('/upload-scan', { method:'POST', body:formData });
+    let data;
+    try { data = await resp.json(); }
+    catch { data = { error: `Server returned HTTP ${resp.status}. Check the Flask terminal for details.` }; }
+
+    if (data.error) {
+      statusMsg.innerHTML = `<div class="text-red-400 font-medium text-sm mb-1">Analysis failed</div>
+        <p class="text-slate-400 text-xs">${data.error}</p>`;
+    } else {
+      statusMsg.innerHTML = `
+        <div class="text-emerald-400 font-semibold text-sm mb-3">Analysis complete</div>
+        <div class="grid grid-cols-3 gap-3 text-center mb-4">
+          <div class="bg-slate-900 rounded-lg p-2.5">
+            <p class="text-xl font-bold text-white">${data.total}</p>
+            <p class="text-xs text-slate-500">Records</p>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-2.5">
+            <p class="text-xl font-bold text-emerald-400">${data.normal}</p>
+            <p class="text-xs text-slate-500">Normal</p>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-2.5">
+            <p class="text-xl font-bold text-red-400">${data.suspicious}</p>
+            <p class="text-xs text-slate-500">Suspicious</p>
+          </div>
+        </div>
+        <a href="/scan-results/${data.scan_id}"
+           class="block text-center text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+          View Detailed Results &rarr;
+        </a>`;
+    }
+  } catch (err) {
+    statusMsg.innerHTML = `<div class="text-red-400 font-medium text-sm mb-1">Connection error</div>
+      <p class="text-slate-400 text-xs">Could not reach Flask. Make sure the server is running.<br>
+      <span class="text-slate-600">${err}</span></p>`;
+  }
+  btn.disabled = false; btn.textContent = 'Run Analysis →';
+});
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Scan History – NetSentinel AI{% endblock %}
+{% block page_title %}Scan History{% endblock %}
+{% block page_sub %}All completed analyses — record count, flag rate, and download links{% endblock %}
+
+{% block content %}
+
+{% if scans %}
+
+<!-- Summary bar -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-white">{{ scans|length }}</p>
+    <p class="text-xs text-slate-400 mt-1">Total Analyses</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-indigo-400">
+      {{ scans|selectattr('status','equalto','completed')|list|length }}
+    </p>
+    <p class="text-xs text-slate-400 mt-1">Completed</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+    <p class="text-2xl font-bold text-red-400">
+      {{ scans|selectattr('status','equalto','failed')|list|length }}
+    </p>
+    <p class="text-xs text-slate-400 mt-1">Failed</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+    {% set total_susp = namespace(v=0) %}
+    {% for s in scans %}{% set total_susp.v = total_susp.v + s['suspicious'] %}{% endfor %}
+    <p class="text-2xl font-bold text-amber-400">{{ total_susp.v }}</p>
+    <p class="text-xs text-slate-400 mt-1">Total Pot. Suspicious</p>
+  </div>
+</div>
+
+<!-- History table -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+  <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+    <h3 class="text-sm font-semibold text-white">All Analyses</h3>
+    <input type="text" id="searchInput" placeholder="Search by filename…"
+           aria-label="Search scans by filename"
+           class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white
+                  placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-52"/>
+  </div>
+  <div class="overflow-x-auto" role="region" aria-label="Scan history table">
+    <table class="w-full text-sm" id="historyTable">
+      <thead>
+        <tr class="bg-slate-800 text-xs text-slate-400 uppercase tracking-wider">
+          <th scope="col" class="text-left px-6 py-3">ID</th>
+          <th scope="col" class="text-left px-6 py-3">File</th>
+          <th scope="col" class="text-left px-6 py-3">Records</th>
+          <th scope="col" class="text-left px-6 py-3">Normal</th>
+          <th scope="col" class="text-left px-6 py-3">Pot. Suspicious</th>
+          <th scope="col" class="text-left px-6 py-3">Flag Rate</th>
+          <th scope="col" class="text-left px-6 py-3">Status</th>
+          <th scope="col" class="text-left px-6 py-3">Date</th>
+          <th scope="col" class="text-left px-6 py-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-800">
+        {% for scan in scans %}
+        <tr class="hover:bg-slate-800/40 transition-colors history-row">
+          <td class="px-6 py-3 text-slate-400 font-mono text-xs">#{{ scan['id'] }}</td>
+
+          <td class="px-6 py-3 text-slate-300 text-xs max-w-xs truncate history-filename">
+            {{ scan['filename'] or '—' }}
+          </td>
+
+          <td class="px-6 py-3 text-slate-200">{{ scan['total'] }}</td>
+          <td class="px-6 py-3 text-emerald-400">{{ scan['normal'] }}</td>
+          <td class="px-6 py-3">
+            {% if scan['suspicious'] > 0 %}
+            <span class="text-red-400 font-semibold">{{ scan['suspicious'] }}</span>
+            {% else %}
+            <span class="text-emerald-400">0</span>
+            {% endif %}
+          </td>
+
+          <!-- Flag rate bar -->
+          <td class="px-6 py-3 text-xs min-w-[110px]">
+            {% if scan['status'] == 'completed' and scan['total'] > 0 %}
+              {% set pct = (scan['suspicious'] / scan['total']) * 100 %}
+              <div class="flex items-center gap-2">
+                <div class="flex-1 bg-slate-800 rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full
+                    {% if pct > 20 %}bg-red-500{% elif pct > 5 %}bg-amber-500{% else %}bg-emerald-500{% endif %}"
+                    style="width:{{ [pct, 100]|min }}%"></div>
+                </div>
+                <span class="text-slate-400 w-9 text-right">{{ "%.0f"|format(pct) }}%</span>
+              </div>
+            {% else %}
+              <span class="text-slate-600">—</span>
+            {% endif %}
+          </td>
+
+          <td class="px-6 py-3">
+            <span class="px-2 py-0.5 rounded-full text-xs
+              {% if scan['status'] == 'completed' %}bg-emerald-900/50 text-emerald-300
+              {% elif scan['status'] == 'failed'  %}bg-red-900/50    text-red-300
+              {% else                             %}bg-amber-900/50  text-amber-300{% endif %}">
+              {{ scan['status']|capitalize }}
+            </span>
+          </td>
+          <td class="px-6 py-3 text-slate-400 text-xs whitespace-nowrap">{{ scan['created'][:16] }}</td>
+          <td class="px-6 py-3">
+            <div class="flex items-center gap-3">
+              {% if scan['status'] == 'completed' %}
+              <a href="{{ url_for('scan_results', scan_id=scan['id']) }}"
+                 class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">View</a>
+              <a href="{{ url_for('download_report', scan_id=scan['id']) }}"
+                 class="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">⬇ CSV</a>
+              {% else %}
+              <span class="text-xs text-slate-600">—</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-16 text-center">
+  <p class="text-5xl mb-4" aria-hidden="true">📋</p>
+  <p class="text-slate-300 font-medium text-lg mb-2">No analysis history yet</p>
+  <p class="text-slate-500 text-sm mb-6">
+    Upload a compatible network traffic CSV to run your first analysis.
+  </p>
+  <a href="{{ url_for('network_scan') }}"
+     class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors">
+    Run a Scan →
+  </a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('searchInput')?.addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.history-row').forEach(row => {
+    const name = row.querySelector('.history-filename').textContent.toLowerCase();
+    row.style.display = name.includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

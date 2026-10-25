@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — NetSentinel AI{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_sub %}Your network security overview{% endblock %}
+
+{% block content %}
+
+<!-- Model not ready warning -->
+{% if not model_ready %}
+<div class="mb-6 flex items-start gap-3 px-5 py-4 bg-amber-950/50 border border-amber-800/60 rounded-xl text-sm">
+  <span class="text-amber-400 text-lg shrink-0">⚠</span>
+  <div>
+    <p class="font-semibold text-amber-300">Model not trained yet</p>
+    <p class="text-amber-200/70 text-xs mt-0.5">
+      Run <code class="bg-slate-800 px-1 rounded">python train_model.py</code> to generate
+      <code class="bg-slate-800 px-1 rounded">model.pkl</code>, then restart the app.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-7">
+  {% set t = totals['t'] or 0 %}
+  {% set n = totals['n'] or 0 %}
+  {% set s = totals['s'] or 0 %}
+  {% set rate = ((s / t) * 100) if t > 0 else 0 %}
+
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Total Records</p>
+    <p class="text-3xl font-bold text-white">{{ t }}</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Normal</p>
+    <p class="text-3xl font-bold text-emerald-400">{{ n }}</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Suspicious</p>
+    <p class="text-3xl font-bold text-red-400">{{ s }}</p>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <p class="text-xs text-slate-500 mb-2 uppercase tracking-wider">Flag Rate</p>
+    <p class="text-3xl font-bold text-amber-400">{{ "%.1f"|format(rate) }}%</p>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-7">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <h3 class="text-sm font-medium text-white mb-4">Prediction Breakdown</h3>
+    <div class="flex items-center justify-center" style="height:200px">
+      <canvas id="donutChart"></canvas>
+    </div>
+  </div>
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <h3 class="text-sm font-medium text-white mb-4">Scan Timeline</h3>
+    <div style="height:200px">
+      <canvas id="timelineChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Recent scans + quick action -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+  <!-- Recent table -->
+  <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-medium text-white">Recent Scans</h3>
+      <a href="{{ url_for('scan_history') }}" class="text-xs text-indigo-400 hover:text-indigo-300">All scans →</a>
+    </div>
+    {% if scans %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-slate-600 border-b border-slate-800">
+            <th class="text-left pb-2 pr-3">ID</th>
+            <th class="text-left pb-2 pr-3">File</th>
+            <th class="text-left pb-2 pr-3">Records</th>
+            <th class="text-left pb-2 pr-3">Suspicious</th>
+            <th class="text-left pb-2 pr-3">Status</th>
+            <th class="text-left pb-2">Date</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/60">
+          {% for scan in scans %}
+          <tr class="hover:bg-slate-800/30 transition-colors">
+            <td class="py-2.5 pr-3 text-slate-500 font-mono">#{{ scan['id'] }}</td>
+            <td class="py-2.5 pr-3 text-slate-300 max-w-[140px] truncate">{{ scan['filename'] or '—' }}</td>
+            <td class="py-2.5 pr-3 text-slate-300">{{ scan['total'] }}</td>
+            <td class="py-2.5 pr-3">
+              {% if scan['suspicious'] > 0 %}
+              <span class="text-red-400 font-semibold">{{ scan['suspicious'] }}</span>
+              {% else %}
+              <span class="text-emerald-400">0</span>
+              {% endif %}
+            </td>
+            <td class="py-2.5 pr-3">
+              <span class="px-2 py-0.5 rounded-full text-xs
+                {% if scan['status']=='completed' %}bg-emerald-900/50 text-emerald-400
+                {% elif scan['status']=='failed'  %}bg-red-900/50 text-red-400
+                {% else %}bg-amber-900/50 text-amber-400{% endif %}">
+                {{ scan['status']|capitalize }}
+              </span>
+            </td>
+            <td class="py-2.5 text-slate-500">{{ scan['created'][:10] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-10 text-slate-600">
+      <p class="text-4xl mb-3">🛡</p>
+      <p class="text-sm">No scans yet.</p>
+      <a href="{{ url_for('network_scan') }}"
+         class="mt-3 inline-block text-xs text-indigo-400 hover:text-indigo-300">Run your first scan →</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Quick action -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">
+    <h3 class="text-sm font-medium text-white mb-4">Quick Actions</h3>
+    <div class="space-y-3 flex-1">
+      <a href="{{ url_for('network_scan') }}"
+         class="flex items-center gap-3 px-4 py-3 bg-indigo-600/10 hover:bg-indigo-600/20
+                border border-indigo-700/40 rounded-lg transition-colors">
+        <span class="text-indigo-400 text-lg">⊕</span>
+        <div>
+          <p class="text-sm font-medium text-white">New Scan</p>
+          <p class="text-xs text-slate-500">Upload a CSV file</p>
+        </div>
+      </a>
+      <a href="{{ url_for('scan_history') }}"
+         class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 hover:bg-slate-800
+                border border-slate-700/40 rounded-lg transition-colors">
+        <span class="text-slate-400 text-lg">≡</span>
+        <div>
+          <p class="text-sm font-medium text-white">View History</p>
+          <p class="text-xs text-slate-500">Past analyses</p>
+        </div>
+      </a>
+      <a href="{{ url_for('reports') }}"
+         class="flex items-center gap-3 px-4 py-3 bg-slate-800/60 hover:bg-slate-800
+                border border-slate-700/40 rounded-lg transition-colors">
+        <span class="text-slate-400 text-lg">↓</span>
+        <div>
+          <p class="text-sm font-medium text-white">Download Reports</p>
+          <p class="text-xs text-slate-500">Export CSV reports</p>
+        </div>
+      </a>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chartOpts = (stacked) => ({
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color:'#64748b', font:{ size:11 } } } },
+  scales: stacked ? {
+    x:{ stacked:true, ticks:{color:'#475569'}, grid:{color:'#1e293b'} },
+    y:{ stacked:true, ticks:{color:'#475569'}, grid:{color:'#1e293b'} }
+  } : undefined
+});
+
+// Doughnut
+fetch('/api/threat-breakdown').then(r=>r.json()).then(d => {
+  const hasData = d.normal > 0 || d.suspicious > 0;
+  new Chart(document.getElementById('donutChart'), {
+    type:'doughnut',
+    data:{
+      labels:['Normal','Potentially Suspicious'],
+      datasets:[{
+        data: hasData ? [d.normal, d.suspicious] : [1,0],
+        backgroundColor:['#10b981','#ef4444'],
+        borderColor:['#064e3b','#7f1d1d'],
+        borderWidth:2, hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'64%',
+      plugins:{
+        legend:{ labels:{ color:'#64748b', font:{size:11} } },
+        tooltip:{ enabled: hasData }
+      }
+    }
+  });
+});
+
+// Timeline
+fetch('/api/scan-timeline').then(r=>r.json()).then(d => {
+  new Chart(document.getElementById('timelineChart'), {
+    type:'bar',
+    data:{
+      labels: d.labels.length ? d.labels : ['No data'],
+      datasets:[
+        { label:'Normal',               data: d.normal,     backgroundColor:'rgba(16,185,129,.7)', borderRadius:3 },
+        { label:'Potentially Suspicious', data: d.suspicious, backgroundColor:'rgba(239,68,68,.7)',  borderRadius:3 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#64748b', font:{size:11} } } },
+      scales:{
+        x:{ stacked:true, ticks:{color:'#475569'}, grid:{color:'#1e293b'} },
+        y:{ stacked:true, ticks:{color:'#475569'}, grid:{color:'#1e293b'} }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

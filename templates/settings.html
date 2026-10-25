@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Settings & Profile – NetSentinel AI{% endblock %}
+{% block page_title %}Settings & Profile{% endblock %}
+{% block page_sub %}Manage your account details and view system information{% endblock %}
+
+{% block content %}
+
+{% if message %}
+<div class="mb-6 px-4 py-3 rounded-lg bg-emerald-900/40 border border-emerald-700 text-emerald-300 text-sm flex items-center gap-2">
+  <span aria-hidden="true">✅</span> {{ message }}
+</div>
+{% endif %}
+{% if error %}
+<div class="mb-6 px-4 py-3 rounded-lg bg-red-900/40 border border-red-700 text-red-300 text-sm flex items-center gap-2">
+  <span aria-hidden="true">⚠️</span> {{ error }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left column: profile card + system info -->
+  <div class="space-y-5">
+
+    <!-- Profile card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center">
+      <div class="w-20 h-20 rounded-full bg-indigo-600 flex items-center justify-center
+                  text-3xl font-bold text-white mx-auto mb-4" aria-hidden="true">
+        {{ user['username'][0].upper() }}
+      </div>
+      <h3 class="text-lg font-semibold text-white">{{ user['username'] }}</h3>
+      <p class="text-sm text-slate-400">{{ user['email'] }}</p>
+      <p class="text-xs text-indigo-400 mt-1">{{ user['company'] }}</p>
+      <span class="mt-2 inline-block px-3 py-1 rounded-full bg-indigo-900/50 text-indigo-300 text-xs border border-indigo-700">
+        {{ user['role'] or 'Analyst' }}
+      </span>
+      <div class="mt-5 pt-4 border-t border-slate-800 text-xs text-slate-500">
+        Member since {{ user['created'][:10] }}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right column: forms -->
+  <div class="lg:col-span-2 space-y-6">
+
+    <!-- Update profile -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+      <h3 class="text-sm font-semibold text-white mb-5">Update Profile</h3>
+      <form method="POST" class="space-y-4" novalidate>
+        <input type="hidden" name="action" value="update_profile"/>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="f-username" class="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
+            <input id="f-username" type="text" value="{{ user['username'] }}" disabled
+              class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-sm
+                     text-slate-400 cursor-not-allowed" aria-describedby="f-username-note"/>
+            <p id="f-username-note" class="text-xs text-slate-600 mt-1">Username cannot be changed.</p>
+          </div>
+          <div>
+            <label for="f-email" class="block text-xs font-medium text-slate-400 mb-1.5">Email</label>
+            <input id="f-email" type="text" value="{{ user['email'] }}" disabled
+              class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-sm
+                     text-slate-400 cursor-not-allowed"/>
+          </div>
+          <div>
+            <label for="f-company" class="block text-xs font-medium text-slate-400 mb-1.5">Company</label>
+            <input id="f-company" type="text" name="company" value="{{ user['company'] }}"
+                   placeholder="Your company"
+              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white
+                     placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1
+                     focus:ring-indigo-500 transition-colors"/>
+          </div>
+          <div>
+            <label for="f-role" class="block text-xs font-medium text-slate-400 mb-1.5">Role</label>
+            <select id="f-role" name="role"
+              class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white
+                     focus:outline-none focus:border-indigo-500 transition-colors">
+              {% for r in ['Security Analyst', 'Network Admin', 'CISO', 'IT Manager', 'Company Analyst', 'Individual User', 'Developer', 'Other'] %}
+              <option value="{{ r }}" {% if user['role'] == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <button type="submit"
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition-colors">
+          Save Profile
+        </button>
+      </form>
+    </div>
+
+    <!-- Change password -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+      <h3 class="text-sm font-semibold text-white mb-5">Change Password</h3>
+      <form method="POST" class="space-y-4" novalidate>
+        <input type="hidden" name="action" value="change_password"/>
+        <div>
+          <label for="f-old-pw" class="block text-xs font-medium text-slate-400 mb-1.5">Current Password</label>
+          <input id="f-old-pw" type="password" name="old_password" required
+                 placeholder="Enter current password"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white
+                   placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1
+                   focus:ring-indigo-500 transition-colors"/>
+        </div>
+        <div>
+          <label for="f-new-pw" class="block text-xs font-medium text-slate-400 mb-1.5">New Password</label>
+          <input id="f-new-pw" type="password" name="new_password" required
+                 placeholder="Enter new password"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white
+                   placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1
+                   focus:ring-indigo-500 transition-colors"/>
+        </div>
+        <button type="submit"
+          class="px-6 py-2.5 bg-amber-700 hover:bg-amber-600 text-white text-sm rounded-lg transition-colors">
+          Change Password
+        </button>
+      </form>
+    </div>
+
+
+  </div>
+</div>
+
+{% endblock %}

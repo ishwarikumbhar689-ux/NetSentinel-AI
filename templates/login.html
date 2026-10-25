@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — NetSentinel AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode:'class' };</script>
+  <style>
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(16px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .fade-in { animation: fadeIn .4s ease both; }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(99,102,241,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(99,102,241,.05) 1px, transparent 1px);
+      background-size: 52px 52px;
+    }
+  </style>
+</head>
+<body class="dark bg-slate-950 text-slate-200 min-h-screen grid-bg">
+
+<div class="min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm fade-in">
+
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <a href="/" class="inline-flex flex-col items-center gap-2">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center
+                    shadow-lg shadow-indigo-600/40">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-lg font-bold text-white">NetSentinel AI</p>
+          <p class="text-xs text-slate-500">AI Intelligent Network Intrusion Detection</p>
+        </div>
+      </a>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-7 shadow-2xl">
+      <h2 class="text-base font-semibold text-white mb-6">Sign in to your account</h2>
+
+      {% if error %}
+      <div class="mb-5 px-4 py-3 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs flex gap-2">
+        <span>⚠</span> {{ error }}
+      </div>
+      {% endif %}
+
+      <form method="POST" class="space-y-4" novalidate>
+        <div>
+          <label for="username" class="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
+          <input id="username" type="text" name="username" required autocomplete="username"
+            placeholder="Enter your username"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white
+                   placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1
+                   focus:ring-indigo-500/40 transition-all" />
+        </div>
+        <div>
+          <label for="password" class="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
+          <input id="password" type="password" name="password" required autocomplete="current-password"
+            placeholder="Enter your password"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white
+                   placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1
+                   focus:ring-indigo-500/40 transition-all" />
+        </div>
+        <button type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2.5 rounded-lg
+                 text-sm transition-colors mt-1">
+          Sign In →
+        </button>
+      </form>
+
+      <p class="text-center text-xs text-slate-600 mt-5">
+        No account?
+        <a href="/register" class="text-indigo-400 hover:text-indigo-300 transition-colors">Create one</a>
+      </p>
+    </div>
+
+    <p class="text-center text-xs text-slate-700 mt-5">
+      <a href="/" class="hover:text-slate-500 transition-colors">← Back to home</a>
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
